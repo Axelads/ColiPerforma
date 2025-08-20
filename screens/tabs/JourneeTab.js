@@ -12,6 +12,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DayCard from "../../components/DayCard";
 import SaveBar from "../../components/SaveBar"; // ✅ barre d’actions réutilisable
+import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 
@@ -65,17 +66,18 @@ export default function JourneeTab() {
         }
 
         const { startISO, endISO } = getDayBoundsISO(dayData.date);
-        const filter = encodeURIComponent(
-          `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`
+        const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
+
+        const res = await axios.get(
+          `${PB_URL}/api/collections/journees/records`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { perPage: 1, filter },
+          }
         );
 
-        const res = await fetch(
-          `${PB_URL}/api/collections/journees/records?perPage=1&filter=${filter}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const json = await res.json();
-
-        if (res.ok && json?.items?.length) {
+        const json = res.data;
+        if (json?.items?.length) {
           setExisting(json.items[0]);
           setEditMode(false); // on verrouille par défaut si déjà enregistré
         } else {
@@ -123,35 +125,35 @@ export default function JourneeTab() {
         isFerie: !!dayData.isFerie,
       };
 
-      let res, json;
-
       if (existing?.id) {
         // UPDATE
-        res = await fetch(`${PB_URL}/api/collections/journees/records/${existing.id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Échec de la mise à jour.");
+        const res = await axios.patch(
+          `${PB_URL}/api/collections/journees/records/${existing.id}`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const json = res.data;
         setExisting(json);
         setEditMode(false);
         Alert.alert("✅ Modifié", "La journée a été mise à jour.");
       } else {
         // CREATE
-        res = await fetch(`${PB_URL}/api/collections/journees/records`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Échec de l'enregistrement.");
+        const res = await axios.post(
+          `${PB_URL}/api/collections/journees/records`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const json = res.data;
         setExisting(json);
         setEditMode(false);
         Alert.alert("✅ Enregistré", "La journée a bien été sauvegardée.");
@@ -161,7 +163,11 @@ export default function JourneeTab() {
       return true; // ✅ succès → SaveBar affichera la pub
     } catch (err) {
       console.error("save error:", err);
-      Alert.alert("Erreur", err.message || "Impossible d'enregistrer.");
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Impossible d'enregistrer.";
+      Alert.alert("Erreur", msg);
       return false;
     } finally {
       setSaving(false);

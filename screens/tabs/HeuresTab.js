@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 const PAUSE_OBLIGATOIRE_MIN = 21; // minutes de pause par jour travaillé
@@ -73,19 +74,19 @@ export default function HeuresTab() {
 
       // récupérer toutes les journées du mois en cours
       const { startISO, endISO } = getMonthBounds(new Date());
-      const filter = encodeURIComponent(
-        `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`
-      );
+      const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
 
       let page = 1;
       let items = [];
       while (true) {
-        const res = await fetch(
-          `${PB_URL}/api/collections/journees/records?perPage=200&page=${page}&filter=${filter}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const res = await axios.get(
+          `${PB_URL}/api/collections/journees/records`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { perPage: 200, page, filter },
+          }
         );
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Impossible de charger les journées.");
+        const json = res.data;
         items = items.concat(json.items || []);
         if (json.page >= json.totalPages) break;
         page += 1;
@@ -129,7 +130,7 @@ export default function HeuresTab() {
       });
     } catch (e) {
       console.error("HeuresTab error:", e);
-      Alert.alert("Erreur", e.message || "Impossible de charger les heures.");
+      Alert.alert("Erreur", e?.response?.data?.message || e.message || "Impossible de charger les heures.");
       setStats({
         minTravail: 0,
         minSupp: 0,

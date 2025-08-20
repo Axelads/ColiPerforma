@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 const QUOTA = { CDD: 1190, CDI: 1260 };
@@ -53,13 +54,13 @@ export default function ColisTab() {
       // 1) Contrat utilisateur (depuis le cache ou via GET user)
       let userContract = user.contrat;
       if (!userContract) {
-        const resUser = await fetch(`${PB_URL}/api/collections/users/records/${user.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const jsonUser = await resUser.json();
-        if (resUser.ok) {
-          userContract = jsonUser?.contrat || "CDI";
-        } else {
+        try {
+          const resUser = await axios.get(
+            `${PB_URL}/api/collections/users/records/${user.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          userContract = resUser.data?.contrat || "CDI";
+        } catch {
           userContract = "CDI";
         }
       }
@@ -67,21 +68,19 @@ export default function ColisTab() {
 
       // 2) Récup des journées du mois en cours (pagination simple)
       const { startISO, endISO } = getMonthBounds(new Date());
-      const filter = encodeURIComponent(
-        `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`
-      );
+      const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
 
       let page = 1;
       let items = [];
       while (true) {
-        const res = await fetch(
-          `${PB_URL}/api/collections/journees/records?perPage=200&page=${page}&filter=${filter}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const res = await axios.get(
+          `${PB_URL}/api/collections/journees/records`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { perPage: 200, page, filter },
+          }
         );
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json?.message || "Impossible de charger les journées.");
-        }
+        const json = res.data;
         items = items.concat(json.items || []);
         if (json.page >= json.totalPages) break;
         page += 1;
@@ -96,9 +95,7 @@ export default function ColisTab() {
       for (const e of items) {
         const colis = Number(e.colis || 0);
         const nonWorked = !!e.isRepos || !!e.isFerie || isSundayISO(e.date);
-        // on compte dans le total mensuel même si nonWorked (si tu veux exclure, dé-commente la ligne suivante)
-        // if (nonWorked) continue;
-
+        // on compte dans le total mensuel même si nonWorked
         totalColis += colis;
 
         if (!nonWorked) {
@@ -113,7 +110,7 @@ export default function ColisTab() {
       setStats({ totalColis, totalAuQuota, totalPrimes, nbJoursQuotaAtteint });
     } catch (e) {
       console.error("ColisTab error:", e);
-      Alert.alert("Erreur", e.message || "Impossible de charger les statistiques.");
+      Alert.alert("Erreur", e?.response?.data?.message || e.message || "Impossible de charger les statistiques.");
       setStats({ totalColis: 0, totalAuQuota: 0, totalPrimes: 0, nbJoursQuotaAtteint: 0 });
     } finally {
       setLoading(false);
@@ -127,10 +124,8 @@ export default function ColisTab() {
     }, [fetchUserAndStats])
   );
 
-  // Si jamais tu veux recharger quand le contrat change (normalement couvert par fetchUserAndStats)
-  useEffect(() => {
-    // noop: stats déjà recalculées dans fetchUserAndStats
-  }, [contract]);
+  // Si jamais tu veux recharger quand le contrat change
+  useEffect(() => {}, [contract]);
 
   return (
     <View style={styles.wrap}>

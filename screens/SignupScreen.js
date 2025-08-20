@@ -14,6 +14,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import DatePickerModal from "../components/DatePickerModal";
 import SelectField from "../components/SelectField";
+import axios from "axios";
 
 export default function SignupScreen({ navigation }) {
   // Identité
@@ -31,11 +32,12 @@ export default function SignupScreen({ navigation }) {
 
   // option pour le secteur d'activité
   const SECTEUR_OPTIONS = [
-  { label: "SEC", value: "SEC" },
-  { label: "FFL (Fruits, Légumes, Fleurs)", value: "FFL (Fruits, Légumes, Fleurs)" },
-  { label: "Méca", value: "Méca" },
-  { label: "Autre...", value: "Autre..." },
-];
+    { label: "SEC", value: "SEC" },
+    { label: "FFL (Fruits, Légumes, Fleurs)", value: "FFL (Fruits, Légumes, Fleurs)" },
+    { label: "Méca", value: "Méca" },
+    { label: "Gel", value: "Gel" },
+    { label: "Autre...", value: "Autre..." },
+  ];
 
   // Contrat
   const [contrat, setContrat] = useState("CDI");
@@ -69,19 +71,16 @@ export default function SignupScreen({ navigation }) {
   // 🔥 Fonction d'inscription avec PocketBase
   const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ⇦ ton IP locale
 
-const handleSignup = async () => {
-  if (!email || !pass) {
-    Alert.alert("Champs requis", "Email et mot de passe sont obligatoires.");
-    return;
-  }
+  const handleSignup = async () => {
+    if (!email || !pass) {
+      Alert.alert("Champs requis", "Email et mot de passe sont obligatoires.");
+      return;
+    }
 
-  setLoading(true);
-  try {
-    // 1) Création du compte
-    const res = await fetch(`${PB_URL}/api/collections/users/records`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    setLoading(true);
+    try {
+      // 1) Création du compte
+      const payload = {
         email,
         password: pass,
         passwordConfirm: pass,
@@ -95,33 +94,36 @@ const handleSignup = async () => {
         dateFin: contrat === "CDD" ? dateFin.toISOString() : null,
         heureDebut: heureDebut.toISOString(),
         heureFin: heureFin.toISOString(),
-      }),
-    });
+      };
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.message || "Échec de l’inscription.");
+      await axios.post(
+        `${PB_URL}/api/collections/users/records`,
+        payload,
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-    // 2) (Option) Login auto juste après la création
-    const loginRes = await fetch(`${PB_URL}/api/collections/users/auth-with-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identity: email, password: pass }),
-    });
-    const loginData = await loginRes.json();
-    if (!loginRes.ok) throw new Error(loginData?.message || "Connexion auto échouée.");
+      // 2) (Option) Login auto juste après la création
+      await axios.post(
+        `${PB_URL}/api/collections/users/auth-with-password`,
+        { identity: email, password: pass },
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-    // 3) Succès + navigation
-    Alert.alert("Compte créé ✅", "Bienvenue sur ColiPerforma !", [
-      { text: "OK", onPress: () => navigation.replace("Home") },
-    ]);
-  } catch (err) {
-    console.error(err);
-    Alert.alert("Erreur", err.message || "Impossible de créer le compte.");
-  } finally {
-    setLoading(false);
-  }
-};
-
+      // 3) Succès + navigation
+      Alert.alert("Compte créé ✅", "Bienvenue sur ColiPerforma !", [
+        { text: "OK", onPress: () => navigation.replace("Home") },
+      ]);
+    } catch (err) {
+      console.error(err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Impossible de créer le compte.";
+      Alert.alert("Erreur", msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
@@ -187,11 +189,11 @@ const handleSignup = async () => {
 
       {/* Select Secteur */}
       <SelectField
-  label="Secteur d’activité"
-  value={secteur}
-  onChange={setSecteur}
-  options={SECTEUR_OPTIONS}
-/>
+        label="Secteur d’activité"
+        value={secteur}
+        onChange={setSecteur}
+        options={SECTEUR_OPTIONS}
+      />
 
       {/* Select Contrat */}
       <SelectField
@@ -312,21 +314,21 @@ const handleSignup = async () => {
       )}
 
       {/* CTA */}
-<TouchableOpacity 
-  style={[styles.btn, { marginTop: 16 }]} 
-  onPress={handleSignup} 
-  disabled={loading}
->
-  {loading ? (
-    <ActivityIndicator color="#0f1115" />
-  ) : (
-    <Text style={styles.btnTxt}>S’inscrire</Text>
-  )}
-</TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.btn, { marginTop: 16 }]} 
+        onPress={handleSignup} 
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#0f1115" />
+        ) : (
+          <Text style={styles.btnTxt}>S’inscrire</Text>
+        )}
+      </TouchableOpacity>
 
-<TouchableOpacity onPress={() => navigation.navigate("Login")}>
-  <Text style={styles.lien}>Déjà un compte ? Se connecter</Text>
-</TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+        <Text style={styles.lien}>Déjà un compte ? Se connecter</Text>
+      </TouchableOpacity>
 
     </ScrollView>
   );

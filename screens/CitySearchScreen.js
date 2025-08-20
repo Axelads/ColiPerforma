@@ -1,8 +1,8 @@
 // screens/CitySearchScreen.js
-import React, { useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, FlatList, TextInput, ActivityIndicator } from "react-native";
 import Constants from "expo-constants";
-import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
+import axios from "axios";
 
 const API_KEY =
   Constants.expoConfig?.extra?.GOOGLE_PLACES_KEY ??
@@ -11,6 +11,9 @@ const API_KEY =
 
 export default function CitySearchScreen({ navigation, route }) {
   const { onPick, country = "fr", initialValue = "" } = route.params || {};
+  const [query, setQuery] = useState(initialValue);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   if (!API_KEY) {
     Alert.alert(
@@ -19,15 +22,38 @@ export default function CitySearchScreen({ navigation, route }) {
     );
   }
 
+  const fetchCities = async (text) => {
+    if (text.length < 2) {
+      setResults([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await axios.get("https://maps.googleapis.com/maps/api/place/autocomplete/json", {
+        params: {
+          input: text,
+          key: API_KEY,
+          language: "fr",
+          components: `country:${country}`,
+          types: "(cities)",
+        },
+        timeout: 15000,
+      });
+
+      const predictions = res.data?.predictions ?? [];
+      setResults(predictions);
+    } catch (err) {
+      console.error("Axios Places error:", err);
+      Alert.alert("Erreur", "Impossible de récupérer les villes.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stylesGPA = useMemo(
     () => ({
       container: { flex: 1, backgroundColor: "#0f1115" },
-      textInputContainer: {
-        backgroundColor: "#0f1115",
-        paddingHorizontal: 12,
-        paddingTop: 16,
-      },
-      textInput: {
+      input: {
         height: 48,
         backgroundColor: "#1a1f29",
         borderWidth: 1,
@@ -36,20 +62,17 @@ export default function CitySearchScreen({ navigation, route }) {
         color: "#e6e9ef",
         fontSize: 16,
         paddingHorizontal: 12,
+        margin: 12,
       },
-      listView: {
-        backgroundColor: "#0f1115",
-        borderTopWidth: 1,
-        borderColor: "#222938",
-      },
+      list: { flex: 1, backgroundColor: "#0f1115" },
       row: {
         backgroundColor: "#0f1115",
         paddingVertical: 12,
         paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderColor: "#1c2331",
       },
-      separator: { height: 1, backgroundColor: "#1c2331" },
-      description: { color: "#e6e9ef" },
-      poweredContainer: { display: "none" },
+      rowText: { color: "#e6e9ef" },
     }),
     []
   );
@@ -63,31 +86,37 @@ export default function CitySearchScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      <GooglePlacesAutocomplete
+      <TextInput
+        style={stylesGPA.input}
         placeholder="Tapez le nom de la ville"
-        query={{
-          key: API_KEY || "invalid",
-          language: "fr",
-          components: `country:${country}`,
-          types: "(cities)",
+        placeholderTextColor="#aaa"
+        value={query}
+        onChangeText={(text) => {
+          setQuery(text);
+          fetchCities(text);
         }}
-        timeout={15000}
-        onPress={(data /* , details */) => {
-          onPick && onPick(data?.description ?? "");
-          navigation.goBack();
-        }}
-        textInputProps={{ defaultValue: initialValue }}
-        minLength={2}
-        fetchDetails={false}
-        enablePoweredByContainer={false}
-        keepResultsAfterBlur
-        debounce={200}
-        styles={stylesGPA}
-        onFail={(e) => console.warn("Places onFail:", e)}
-        onNotFound={() => console.warn("Places: not found")}
-        predefinedPlaces={[]}
-        predefinedPlacesAlwaysVisible={false}
       />
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 20 }} />
+      ) : (
+        <FlatList
+          data={results}
+          keyExtractor={(item) => item.place_id}
+          style={stylesGPA.list}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={stylesGPA.row}
+              onPress={() => {
+                onPick && onPick(item.description ?? "");
+                navigation.goBack();
+              }}
+            >
+              <Text style={stylesGPA.rowText}>{item.description}</Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </View>
   );
 }

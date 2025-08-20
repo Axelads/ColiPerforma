@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
+import axios from "axios";
 
 // ---- Locale FR ----
 LocaleConfig.locales.fr = {
@@ -79,19 +80,16 @@ export default function CalendrierTab() {
       }
 
       const { startISO, endISO } = monthBounds(new Date());
-      const filter = encodeURIComponent(
-        `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`
-      );
+      const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
 
       let page = 1;
       let acc = [];
       while (true) {
-        const res = await fetch(
-          `${PB_URL}/api/collections/journees/records?perPage=200&page=${page}&filter=${filter}&sort=date`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Chargement impossible.");
+        const res = await axios.get(`${PB_URL}/api/collections/journees/records`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { perPage: 200, page, filter, sort: "date" },
+        });
+        const json = res.data;
         acc = acc.concat(json.items || []);
         if (json.page >= json.totalPages) break;
         page += 1;
@@ -99,7 +97,7 @@ export default function CalendrierTab() {
       setItems(acc);
     } catch (e) {
       console.error("CalendrierTab loadMonth error:", e);
-      Alert.alert("Erreur", e.message || "Impossible de charger le calendrier.");
+      Alert.alert("Erreur", e?.response?.data?.message || e.message || "Impossible de charger le calendrier.");
       setItems([]);
     } finally {
       setLoading(false);
@@ -203,37 +201,40 @@ export default function CalendrierTab() {
         isFerie: next.isFerie,
       };
 
-      let res, json;
       if (current.id) {
         // update
-        res = await fetch(`${PB_URL}/api/collections/journees/records/${current.id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Mise à jour impossible.");
+        await axios.patch(
+          `${PB_URL}/api/collections/journees/records/${current.id}`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
       } else {
         // create
-        res = await fetch(`${PB_URL}/api/collections/journees/records`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Création impossible.");
+        await axios.post(
+          `${PB_URL}/api/collections/journees/records`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
       }
 
       await loadMonth(); // refresh
     } catch (e) {
       console.error("CalendrierTab updateFlags error:", e);
-      Alert.alert("Erreur", e.message || "Impossible de mettre à jour la journée.");
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Impossible de mettre à jour la journée.";
+      Alert.alert("Erreur", msg);
     }
   };
 

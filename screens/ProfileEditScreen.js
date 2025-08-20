@@ -1,3 +1,4 @@
+// screens/ProfileEditScreen.js
 import React, { useEffect, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform
@@ -8,6 +9,7 @@ import BackButton from "../components/BackButton";
 import SelectField from "../components/SelectField";
 import DatePickerModal from "../components/DatePickerModal";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 
@@ -24,9 +26,9 @@ export default function ProfileEditScreen({ navigation }) {
   const [prenom, setPrenom] = useState("");
   const [email, setEmail] = useState("");
   const [entreprise, setEntreprise] = useState("");
-  const [secteur, setSecteur] = useState(null);       // SEC | FFL (Fruits, Légumes, Fleurs) | MECA | AUTRE
+  const [secteur, setSecteur] = useState(null);
   const [ville, setVille] = useState("");
-  const [contrat, setContrat] = useState("CDI");      // CDI | CDD
+  const [contrat, setContrat] = useState("CDI");
 
   const [dateDebut, setDateDebut] = useState(null);
   const [dateFin, setDateFin] = useState(null);
@@ -51,12 +53,12 @@ export default function ProfileEditScreen({ navigation }) {
           navigation.replace("Login");
           return;
         }
-        const res = await fetch(`${PB_URL}/api/collections/users/records/${me.id}`, {
+
+        const res = await axios.get(`${PB_URL}/api/collections/users/records/${me.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.message || "Impossible de charger le profil.");
 
+        const data = res.data;
         setNom(data.nom || "");
         setPrenom(data.prenom || "");
         setEmail(data.email || "");
@@ -69,7 +71,7 @@ export default function ProfileEditScreen({ navigation }) {
         setHeureDebut(data.heureDebut ? new Date(data.heureDebut) : null);
         setHeureFin(data.heureFin ? new Date(data.heureFin) : null);
       } catch (e) {
-        Alert.alert("Erreur", e.message);
+        Alert.alert("Erreur", e?.response?.data?.message || e.message);
       } finally {
         setLoading(false);
       }
@@ -96,18 +98,13 @@ export default function ProfileEditScreen({ navigation }) {
         heureFin:   heureFin   ? new Date(heureFin).toISOString()   : null,
       };
 
-      const res = await fetch(`${PB_URL}/api/collections/users/records/${me.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        const msg = json?.data
-          ? Object.entries(json.data).map(([k, v]) => `${k}: ${v?.message}`).join("\n")
-          : (json?.message || "Échec de la sauvegarde.");
-        throw new Error(msg);
-      }
+      const res = await axios.patch(
+        `${PB_URL}/api/collections/users/records/${me.id}`,
+        body,
+        { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } }
+      );
+
+      const json = res.data;
 
       const newModel = { ...(JSON.parse(await AsyncStorage.getItem("pb_model")) || {}), ...json };
       await AsyncStorage.setItem("pb_model", JSON.stringify(newModel));
@@ -115,7 +112,8 @@ export default function ProfileEditScreen({ navigation }) {
       Alert.alert("✅ Sauvegardé", "Profil mis à jour.");
       navigation.goBack();
     } catch (e) {
-      Alert.alert("Erreur", e.message);
+      const msg = e?.response?.data?.message || e.message || "Échec de la sauvegarde.";
+      Alert.alert("Erreur", msg);
     } finally {
       setSaving(false);
     }

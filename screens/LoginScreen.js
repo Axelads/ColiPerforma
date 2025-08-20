@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // import AdBanner from "../utils/AdBanner"; // 🚫 Désactivé temporairement
+import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ← adapte si besoin
 
@@ -46,15 +47,19 @@ export default function LoginScreen({ navigation }) {
     Keyboard.dismiss();
     setLoading(true);
     try {
-      const res = await fetch(`${PB_URL}/api/collections/users/auth-with-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identity, password: pwd }),
-      });
+      const res = await axios.post(
+        `${PB_URL}/api/collections/users/auth-with-password`,
+        { identity, password: pwd },
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 15000, // ⏳ évite le crash Android si timeout null
+        }
+      );
 
-      const data = await res.json().catch(() => ({}));
+      const data = res?.data ?? {};
 
-      if (!res.ok) {
+      // Gestion d'erreur côté HTTP (peu probable ici car axios jette déjà sur !2xx)
+      if (res.status < 200 || res.status >= 300) {
         let msg = "Email ou mot de passe incorrect.";
         if (data?.data?.identity?.code === "validation_required" || data?.data?.password?.code === "validation_required") {
           msg = "Veuillez renseigner l'email et le mot de passe.";
@@ -75,7 +80,11 @@ export default function LoginScreen({ navigation }) {
       navigation.replace("Home");
     } catch (err) {
       console.error("Login error:", err);
-      Alert.alert("Connexion impossible", err.message || "Une erreur est survenue.");
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Une erreur est survenue.";
+      Alert.alert("Connexion impossible", msg);
     } finally {
       setLoading(false);
     }
@@ -95,10 +104,10 @@ export default function LoginScreen({ navigation }) {
 
             {/* Logo */}
             <Image
-              source={{ uri: "http://www.image-heberg.fr/files/17554533343949269859.png" }}
+              source={require("../../assets/logo_ColisPerforma.png")}
               style={styles.logo}
               resizeMode="contain"
-            />
+            />  
 
             <Text style={styles.title}>Connexion</Text>
 

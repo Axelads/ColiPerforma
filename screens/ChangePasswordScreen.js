@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BackButton from "../components/BackButton";
+import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 
@@ -45,36 +46,33 @@ export default function ChangePasswordScreen({ navigation }) {
         throw new Error("Session expirée. Reconnecte-toi.");
       }
 
-      const res = await fetch(`${PB_URL}/api/collections/users/records/${me.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const res = await axios.patch(
+        `${PB_URL}/api/collections/users/records/${me.id}`,
+        {
           oldPassword: curr,
           password: next,
           passwordConfirm: conf,
-        }),
-      });
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        // remonte les messages de PocketBase (ex: oldPassword incorrect)
-        const msg =
-          data?.data
-            ? Object.entries(data.data)
-                .map(([k, v]) => `${k}: ${v?.message}`)
-                .join("\n")
-            : data?.message || "Échec du changement de mot de passe.";
-        throw new Error(msg);
+      if (res.status >= 200 && res.status < 300) {
+        Alert.alert("✅ OK", "Mot de passe changé.");
+        navigation.goBack();
       }
-
-      Alert.alert("✅ OK", "Mot de passe changé.");
-      navigation.goBack();
     } catch (e) {
-      Alert.alert("Erreur", e.message);
+      const msg =
+        e?.response?.data?.data
+          ? Object.entries(e.response.data.data)
+              .map(([k, v]) => `${k}: ${v?.message}`)
+              .join("\n")
+          : e?.response?.data?.message || e.message || "Échec du changement de mot de passe.";
+      Alert.alert("Erreur", msg);
     } finally {
       setSaving(false);
     }
