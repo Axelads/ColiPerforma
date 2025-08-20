@@ -6,24 +6,49 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false, 
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "extra": {
+      "GOOGLE_PLACES_KEY": "AIzaSyASepMIojYcUi3VEJae0IZD51HY95QukGU",
+      "eas": {
+        "projectId": "23c35fb9-c6e2-4531-9a5f-c06c1665f9f6"
+      }
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.axelgregoire.coliperforma",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.axelgregoire.coliperforma",
+      "permissions": [
+        "INTERNET",
+        "com.google.android.gms.permission.AD_ID"
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-8479512225202408~7821561298",
+          "iosAppId": "ca-app-pub-8479512225202408~4520061790"
+        }
+      ]
+    ]
   }
 }
