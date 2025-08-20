@@ -71,6 +71,7 @@ export default function CitySearchScreen({ navigation, route }) {
           components: `country:${country}`,
           types: "(cities)",
         }}
+        requestConfig={{ timeout: 10000 }}
         onPress={(data /* , details */) => {
           onPick && onPick(data?.description ?? "");
           navigation.goBack();
