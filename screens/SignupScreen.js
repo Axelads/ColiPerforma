@@ -67,7 +67,7 @@ export default function SignupScreen({ navigation }) {
   };
 
   // 🔥 Fonction d'inscription avec PocketBase
-  const PB_URL = "http://192.168.1.25:8090"; // ⇦ ton IP locale
+  const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ⇦ ton IP locale
 
 const handleSignup = async () => {
   if (!email || !pass) {

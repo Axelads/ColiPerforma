@@ -19,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // import AdBanner from "../utils/AdBanner"; // 🚫 Désactivé temporairement
 
-const PB_URL = "http://192.168.1.25:8090"; // ← adapte si besoin
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ← adapte si besoin
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");

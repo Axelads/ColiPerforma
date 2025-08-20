@@ -9,7 +9,7 @@ import SelectField from "../components/SelectField";
 import DatePickerModal from "../components/DatePickerModal";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-const PB_URL = "http://192.168.1.25:8090";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { year: "numeric", month: "2-digit", day: "2-digit" }) : "-";

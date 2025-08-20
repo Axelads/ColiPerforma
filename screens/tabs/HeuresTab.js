@@ -10,7 +10,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 
-const PB_URL = "http://192.168.1.25:8090";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 const PAUSE_OBLIGATOIRE_MIN = 21; // minutes de pause par jour travaillé
 
 function monthLabel(d = new Date()) {

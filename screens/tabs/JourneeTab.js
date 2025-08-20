@@ -13,7 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DayCard from "../../components/DayCard";
 import SaveBar from "../../components/SaveBar"; // ✅ barre d’actions réutilisable
 
-const PB_URL = "http://192.168.1.25:8090";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 
 export default function JourneeTab() {
   const [dayData, setDayData] = useState(null);   // données de la DayCard
