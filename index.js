@@ -1,9 +1,28 @@
+// --- Patch Android: éviter le crash "null cannot be cast to kotlin.Double" ---
+// Certains modules (ou versions d'auto-complete) peuvent passer `timeout = null` au module natif.
+import { NativeModules } from 'react-native';
+try {
+  const { Networking } = NativeModules;
+  if (Networking && typeof Networking.sendRequest === 'function') {
+    const origSend = Networking.sendRequest;
+    NativeModules.Networking.sendRequest = function (
+      method, url, headers, data, responseType,
+      useIncrementalUpdates, timeout, withCredentials, ...rest
+    ) {
+      const safeTimeout = typeof timeout === 'number' ? timeout : 0; // jamais null
+      return origSend.call(
+        this,
+        method, url, headers, data, responseType,
+        useIncrementalUpdates, safeTimeout, withCredentials, ...rest
+      );
+    };
+  }
+} catch { /* no-op */ }
+// ---------------------------------------------------------------------------
+
 import 'react-native-get-random-values';
 import { registerRootComponent } from 'expo';
-
 import App from './App';
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+// Enregistre l'app (Expo Go ou build natif)
 registerRootComponent(App);
