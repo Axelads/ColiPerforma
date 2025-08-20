@@ -104,7 +104,7 @@ export default function LoginScreen({ navigation }) {
 
             {/* Logo */}
             <Image
-              source={require("../../assets/logo_ColisPerforma.png")}
+              source={require("../assets/logo_ColisPerforma.png")}
               style={styles.logo}
               resizeMode="contain"
             />  
