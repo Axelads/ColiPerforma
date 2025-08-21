@@ -18,7 +18,6 @@ export default function CitySearchScreen({ navigation, route }) {
   if (!API_KEY) {
     Alert.alert(
       "Clé Google manquante",
-      "Ajoute ta clé dans app.json → expo.extra.GOOGLE_PLACES_KEY puis relance avec `npx expo start -c`."
     );
   }
 
