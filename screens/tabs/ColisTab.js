@@ -14,6 +14,17 @@ import axios from "axios";
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 const QUOTA = { CDD: 1190, CDI: 1260 };
 
+const toBool = (v) => {
+  if (v === true || v === false) return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0") return false;
+  }
+  return !!v;
+};
+
 function monthLabel(d = new Date()) {
   return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
@@ -80,9 +91,9 @@ export default function ColisTab() {
             params: { perPage: 200, page, filter },
           }
         );
-        const json = res.data;
+        const json = res.data || {};
         items = items.concat(json.items || []);
-        if (json.page >= json.totalPages) break;
+        if (!json.totalPages || json.page >= json.totalPages) break;
         page += 1;
       }
 
@@ -94,7 +105,7 @@ export default function ColisTab() {
 
       for (const e of items) {
         const colis = Number(e.colis || 0);
-        const nonWorked = !!e.isRepos || !!e.isFerie || isSundayISO(e.date);
+        const nonWorked = toBool(e.isRepos) || toBool(e.isFerie) || isSundayISO(e.date);
         // on compte dans le total mensuel même si nonWorked
         totalColis += colis;
 

@@ -16,6 +16,17 @@ import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 
+const toBool = (v) => {
+  if (v === true || v === false) return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0") return false;
+  }
+  return !!v;
+};
+
 export default function JourneeTab() {
   const [dayData, setDayData] = useState(null);   // données de la DayCard
   const [existing, setExisting] = useState(null); // record PocketBase du jour (s'il existe)
@@ -43,8 +54,8 @@ export default function JourneeTab() {
       heuresSupp: existing.heuresSupp,
       poste: existing.poste ?? null,
       polyvalence: existing.polyvalence ?? null,
-      isRepos: !!existing.isRepos,
-      isFerie: !!existing.isFerie,
+      isRepos: toBool(existing.isRepos),
+      isFerie: toBool(existing.isFerie),
     };
   }, [existing]);
 
@@ -121,8 +132,8 @@ export default function JourneeTab() {
         heureFin: new Date(dayData.heureFin).toISOString(),
         poste: dayData.poste || null,
         polyvalence: dayData.polyvalence || null,
-        isRepos: !!dayData.isRepos,
-        isFerie: !!dayData.isFerie,
+        isRepos: toBool(dayData.isRepos),
+        isFerie: toBool(dayData.isFerie),
       };
 
       if (existing?.id) {

@@ -14,6 +14,17 @@ import axios from "axios";
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 const PAUSE_OBLIGATOIRE_MIN = 21; // minutes de pause par jour travaillé
 
+const toBool = (v) => {
+  if (v === true || v === false) return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0") return false;
+  }
+  return !!v;
+};
+
 function monthLabel(d = new Date()) {
   return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
@@ -86,9 +97,9 @@ export default function HeuresTab() {
             params: { perPage: 200, page, filter },
           }
         );
-        const json = res.data;
+        const json = res.data || {};
         items = items.concat(json.items || []);
-        if (json.page >= json.totalPages) break;
+        if (!json.totalPages || json.page >= json.totalPages) break;
         page += 1;
       }
 
@@ -98,7 +109,7 @@ export default function HeuresTab() {
       let joursTravailles = 0;
 
       for (const e of items) {
-        const nonWorked = !!e.isRepos || !!e.isFerie || isSundayISO(e.date);
+        const nonWorked = toBool(e.isRepos) || toBool(e.isFerie) || isSundayISO(e.date);
         if (nonWorked) continue;
 
         let mins = workMinutes(e.heureDebut, e.heureFin);

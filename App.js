@@ -10,6 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 import HomeScreen from "./screens/HomeScreen";
+import PalettesFFLScreen from "./screens/PalettesFFLScreen";
 import CitySearchScreen from "./screens/CitySearchScreen";
 import ParametresScreen from "./screens/ParametresScreen";
 import ProfileEditScreen from "./screens/ProfileEditScreen";
@@ -52,6 +53,7 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="PalettesFFL" component={PalettesFFLScreen} />
         <Stack.Screen name="CitySearch" component={CitySearchScreen} />
         <Stack.Screen name="Parametres" component={ParametresScreen} />
         <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />

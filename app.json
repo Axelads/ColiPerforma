@@ -3,6 +3,7 @@
     "name": "ColiPerforma",
     "slug": "ColiPerforma",
     "version": "1.0.0",
+    "scheme": "coliperforma",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

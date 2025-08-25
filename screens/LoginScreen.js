@@ -22,6 +22,31 @@ import axios from "axios";
 
 const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ← adapte si besoin
 
+// --- Helpers (robustesse booleans) ---
+const toBool = (v) => {
+  if (v === true || v === false) return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0") return false;
+  }
+  return !!v;
+};
+
+// Normalise ce qu’on connaît potentiellement comme bool dans user record.
+// (On reste conservateur : on ne touche qu’aux champs qui posent classiquement souci)
+const normalizeRecord = (rec = {}) => {
+  const out = { ...rec };
+  // champs PocketBase fréquents
+  if ("verified" in out) out.verified = toBool(out.verified);
+  if ("emailVisibility" in out) out.emailVisibility = toBool(out.emailVisibility);
+  if ("isAdmin" in out) out.isAdmin = toBool(out.isAdmin);
+  // si tu ajoutes d'autres flags dans users plus tard, ajoute-les ici :
+  // if ('someFlag' in out) out.someFlag = toBool(out.someFlag);
+  return out;
+};
+
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -58,13 +83,18 @@ export default function LoginScreen({ navigation }) {
 
       const data = res?.data ?? {};
 
-      // Gestion d'erreur côté HTTP (peu probable ici car axios jette déjà sur !2xx)
+      // (Par sécurité — axios throw déjà sur codes non-2xx)
       if (res.status < 200 || res.status >= 300) {
         let msg = "Email ou mot de passe incorrect.";
-        if (data?.data?.identity?.code === "validation_required" || data?.data?.password?.code === "validation_required") {
+        if (
+          data?.data?.identity?.code === "validation_required" ||
+          data?.data?.password?.code === "validation_required"
+        ) {
           msg = "Veuillez renseigner l'email et le mot de passe.";
         } else if (typeof data?.message === "string" && data.message.length) {
-          msg = data.message.includes("authenticate") ? "Email ou mot de passe incorrect." : data.message;
+          msg = data.message.includes("authenticate")
+            ? "Email ou mot de passe incorrect."
+            : data.message;
         }
         throw new Error(msg);
       }
@@ -72,8 +102,14 @@ export default function LoginScreen({ navigation }) {
       if (data?.token) {
         await AsyncStorage.setItem("pb_token", String(data.token));
       }
+
       if (data?.record) {
-        await AsyncStorage.setItem("pb_model", JSON.stringify(data.record));
+        // 💡 on normalise (notamment booleans) avant de stocker
+        const normalized = normalizeRecord(data.record);
+        await AsyncStorage.setItem("pb_model", JSON.stringify(normalized));
+      } else {
+        // par prudence, on évite de laisser un vieux modèle en cache si pas renvoyé
+        await AsyncStorage.removeItem("pb_model");
       }
 
       Alert.alert("Succès", "Connexion réussie !");
@@ -85,6 +121,11 @@ export default function LoginScreen({ navigation }) {
         err?.message ||
         "Une erreur est survenue.";
       Alert.alert("Connexion impossible", msg);
+
+      // En cas d’échec, on nettoie la session pour éviter un cache incohérent
+      try {
+        await AsyncStorage.multiRemove(["pb_token", "pb_model"]);
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -92,7 +133,10 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0f1115" }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <ScrollView
             style={{ flex: 1, backgroundColor: "#0f1115" }}
@@ -107,7 +151,7 @@ export default function LoginScreen({ navigation }) {
               source={require("../assets/logo_ColisPerforma.png")}
               style={styles.logo}
               resizeMode="contain"
-            />  
+            />
 
             <Text style={styles.title}>Connexion</Text>
 
@@ -139,8 +183,16 @@ export default function LoginScreen({ navigation }) {
               textContentType="password"
             />
 
-            <TouchableOpacity style={[styles.button, loading && { opacity: 0.8 }]} onPress={handleLogin} disabled={loading}>
-              {loading ? <ActivityIndicator /> : <Text style={styles.buttonText}>Se connecter</Text>}
+            <TouchableOpacity
+              style={[styles.button, loading && { opacity: 0.8 }]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator />
+              ) : (
+                <Text style={styles.buttonText}>Se connecter</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate("Signup")}>

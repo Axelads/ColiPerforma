@@ -30,6 +30,17 @@ const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
 const PAUSE_OBLIGATOIRE_MIN = 21;
 
 // ---- Helpers ----
+const toBool = (v) => {
+  if (v === true || v === false) return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0") return false;
+  }
+  return !!v;
+};
+
 function toKey(d) {
   if (typeof d === "string") return d.slice(0, 10);
   return new Date(d).toISOString().slice(0, 10);
@@ -89,9 +100,9 @@ export default function CalendrierTab() {
           headers: { Authorization: `Bearer ${token}` },
           params: { perPage: 200, page, filter, sort: "date" },
         });
-        const json = res.data;
+        const json = res.data || {};
         acc = acc.concat(json.items || []);
-        if (json.page >= json.totalPages) break;
+        if (!json.totalPages || json.page >= json.totalPages) break;
         page += 1;
       }
       setItems(acc);
@@ -137,8 +148,8 @@ export default function CalendrierTab() {
       heureDebut: found.heureDebut || null,
       heureFin: found.heureFin || null,
       poste: found.poste || null,
-      isRepos: !!found.isRepos,
-      isFerie: !!found.isFerie,
+      isRepos: toBool(found.isRepos),
+      isFerie: toBool(found.isFerie),
       dimanche: dim,
     };
   }, [items, selected]);
@@ -158,7 +169,7 @@ export default function CalendrierTab() {
     // marquer chaque record du mois
     items.forEach((e) => {
       const key = toKey(e.date);
-      const nw = !!e.isRepos || !!e.isFerie || isSundayKey(key);
+      const nw = toBool(e.isRepos) || toBool(e.isFerie) || isSundayKey(key);
       marks[key] = {
         customStyles: {
           container: { backgroundColor: "transparent" },
@@ -188,17 +199,18 @@ export default function CalendrierTab() {
       }
 
       const keyISO = new Date(selected).toISOString();
+      const nonWorkedNext = toBool(next.nonWorked);
       const payload = {
         user: user.id,
         date: keyISO,
         // si non travaillé → reset colis/HS/horaires
-        colis: next.nonWorked ? 0 : current.colis || 0,
-        heuresSupp: next.nonWorked ? 0 : current.heuresSupp || 0,
-        heureDebut: next.nonWorked ? null : current.heureDebut,
-        heureFin: next.nonWorked ? null : current.heureFin,
-        poste: next.nonWorked ? null : (current.poste || null),
-        isRepos: next.isRepos,
-        isFerie: next.isFerie,
+        colis: nonWorkedNext ? 0 : (Number(current.colis) || 0),
+        heuresSupp: nonWorkedNext ? 0 : (Number(current.heuresSupp) || 0),
+        heureDebut: nonWorkedNext ? null : current.heureDebut,
+        heureFin: nonWorkedNext ? null : current.heureFin,
+        poste: nonWorkedNext ? null : (current.poste || null),
+        isRepos: toBool(next.isRepos),
+        isFerie: toBool(next.isFerie),
       };
 
       if (current.id) {
@@ -239,12 +251,14 @@ export default function CalendrierTab() {
   };
 
   const onToggleRepos = (value) => {
-    const nextNonWorked = value || current.isFerie || current.dimanche;
-    updateFlags({ isRepos: value, isFerie: current.isFerie, nonWorked: nextNonWorked });
+    const v = toBool(value);
+    const nextNonWorked = v || toBool(current.isFerie) || current.dimanche;
+    updateFlags({ isRepos: v, isFerie: current.isFerie, nonWorked: nextNonWorked });
   };
   const onToggleFerie = (value) => {
-    const nextNonWorked = value || current.isRepos || current.dimanche;
-    updateFlags({ isRepos: current.isRepos, isFerie: value, nonWorked: nextNonWorked });
+    const v = toBool(value);
+    const nextNonWorked = v || toBool(current.isRepos) || current.dimanche;
+    updateFlags({ isRepos: current.isRepos, isFerie: v, nonWorked: nextNonWorked });
   };
 
   // ---- Thème calendrier sombre ----
@@ -298,9 +312,9 @@ export default function CalendrierTab() {
             <View style={[styles.switchRow, { marginTop: 10 }]}>
               <Text style={styles.lbl}>Jour de repos</Text>
               <Switch
-                value={!!current.isRepos}
+                value={!!toBool(current.isRepos)}
                 onValueChange={onToggleRepos}
-                thumbColor={current.isRepos ? "#22c55e" : "#9aa5b1"}
+                thumbColor={toBool(current.isRepos) ? "#22c55e" : "#9aa5b1"}
               />
             </View>
 

@@ -1,3 +1,4 @@
+// components/DayCard.js
 import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
@@ -21,6 +22,18 @@ function getWorkDuration(start, end) {
   const decimal = Math.round((totalMin / 60) * 100) / 100;
   return { h, m, decimal, totalMin };
 }
+
+// 🔒 Normalisation robuste des booléens (gère true/false, "true"/"false", 1/0, "1"/"0")
+const toBool = (v) => {
+  if (v === true || v === false) return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1") return true;
+    if (s === "false" || s === "0") return false;
+  }
+  return !!v;
+};
 
 /**
  * props:
@@ -47,8 +60,9 @@ export default function DayCard({ prefill, disabled = false, onChange }) {
   const [poste, setPoste] = useState(prefill?.poste ?? null);
   const [poly, setPoly]   = useState(prefill?.polyvalence ?? null);
 
-  const [isRepos, setIsRepos] = useState(!!prefill?.isRepos);
-  const [isFerie, setIsFerie] = useState(!!prefill?.isFerie);
+  // 🛡️ Normalise dès l'init
+  const [isRepos, setIsRepos] = useState(toBool(prefill?.isRepos));
+  const [isFerie, setIsFerie] = useState(toBool(prefill?.isFerie));
 
   // -------- resync si le parent change prefill (ex: on revient sur l’onglet)
   useEffect(() => {
@@ -60,8 +74,9 @@ export default function DayCard({ prefill, disabled = false, onChange }) {
     if (prefill.heuresSupp != null) setHs(String(prefill.heuresSupp));
     if (prefill.poste !== undefined) setPoste(prefill.poste);
     if (prefill.polyvalence !== undefined) setPoly(prefill.polyvalence);
-    setIsRepos(!!prefill.isRepos);
-    setIsFerie(!!prefill.isFerie);
+    // 🛡️ re-normalise sur update
+    setIsRepos(toBool(prefill.isRepos));
+    setIsFerie(toBool(prefill.isFerie));
   }, [
     prefill?.date, prefill?.heureDebut, prefill?.heureFin,
     prefill?.colis, prefill?.heuresSupp, prefill?.poste, prefill?.polyvalence,
@@ -91,8 +106,8 @@ export default function DayCard({ prefill, disabled = false, onChange }) {
       heuresSupp: Number(hsupp || 0),
       poste,
       polyvalence: poly,
-      isRepos,
-      isFerie,
+      isRepos: toBool(isRepos),
+      isFerie: toBool(isFerie),
       heuresTravailles: worked.decimal,
       heuresTravaillesHM: { h: worked.h, m: worked.m },
     });
@@ -130,11 +145,11 @@ export default function DayCard({ prefill, disabled = false, onChange }) {
       <View style={[styles.row, { alignItems: "center" }]}>
         <View style={[styles.col, styles.switchRow]}>
           <Text style={styles.label}>Jour de repos</Text>
-          <Switch value={isRepos} onValueChange={setIsRepos} thumbColor={isRepos ? "#ffcc66" : "#9aa5b1"} disabled={disabled}/>
+          <Switch value={!!isRepos} onValueChange={setIsRepos} thumbColor={isRepos ? "#ffcc66" : "#9aa5b1"} disabled={disabled}/>
         </View>
         <View style={[styles.col, styles.switchRow]}>
           <Text style={styles.label}>Jour férié</Text>
-          <Switch value={isFerie} onValueChange={setIsFerie} thumbColor={isFerie ? "#ffcc66" : "#9aa5b1"} disabled={disabled}/>
+          <Switch value={!!isFerie} onValueChange={setIsFerie} thumbColor={isFerie ? "#ffcc66" : "#9aa5b1"} disabled={disabled}/>
         </View>
       </View>
 
