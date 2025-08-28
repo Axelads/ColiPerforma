@@ -9,7 +9,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BackButton from "../components/BackButton";
 import axios from "axios";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+
 
 export default function ChangePasswordScreen({ navigation }) {
   const [current, setCurrent] = useState("");

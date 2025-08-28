@@ -9,7 +9,7 @@ import PaletteRow from "../components/PaletteRow";
 import PalettesTotalsBar from "../components/PalettesTotalsBar";
 import axios from "axios";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
 const NATO = ["Alfa","Bravo","Charlie","Delta","Echo","Foxtrot","Golf","Hotel","India","Juliett","Kilo","Lima","Mike","November","Oscar","Papa","Quebec","Romeo","Sierra","Tango","Uniform","Victor","Whiskey","X-ray","Yankee","Zulu"];
 
 function toKey(d) { return new Date(d).toISOString().slice(0,10); }

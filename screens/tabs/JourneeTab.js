@@ -14,7 +14,8 @@ import DayCard from "../../components/DayCard";
 import SaveBar from "../../components/SaveBar"; // ✅ barre d’actions réutilisable
 import axios from "axios";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+
 
 const toBool = (v) => {
   if (v === true || v === false) return v;

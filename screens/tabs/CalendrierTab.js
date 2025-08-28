@@ -26,7 +26,8 @@ LocaleConfig.locales.fr = {
 LocaleConfig.defaultLocale = "fr";
 
 // ---- Constantes ----
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+
 const PAUSE_OBLIGATOIRE_MIN = 21;
 
 // ---- Helpers ----

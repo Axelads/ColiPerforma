@@ -19,8 +19,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // import AdBanner from "../utils/AdBanner"; // 🚫 Désactivé temporairement
 import axios from "axios";
+import PasswordInput from "../components/PasswordInput";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ← adapte si besoin
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+
 
 // --- Helpers (robustesse booleans) ---
 const toBool = (v) => {
@@ -170,17 +172,10 @@ export default function LoginScreen({ navigation }) {
               textContentType="username"
             />
 
-            <TextInput
-              ref={passRef}
-              style={styles.input}
-              placeholder="Mot de passe"
-              placeholderTextColor="#aaa"
-              secureTextEntry
+            <PasswordInput
+              inputRef={passRef}
               value={password}
               onChangeText={setPassword}
-              returnKeyType="done"
-              onSubmitEditing={Keyboard.dismiss}
-              textContentType="password"
             />
 
             <TouchableOpacity

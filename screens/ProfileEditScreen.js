@@ -11,7 +11,8 @@ import DatePickerModal from "../components/DatePickerModal";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from "axios";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app";
+const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { year: "numeric", month: "2-digit", day: "2-digit" }) : "-";

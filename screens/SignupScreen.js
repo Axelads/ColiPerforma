@@ -14,6 +14,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import DatePickerModal from "../components/DatePickerModal";
 import SelectField from "../components/SelectField";
+import PasswordInput from "../components/PasswordInput";
 import axios from "axios";
 
 export default function SignupScreen({ navigation }) {
@@ -69,7 +70,8 @@ export default function SignupScreen({ navigation }) {
   };
 
   // 🔥 Fonction d'inscription avec PocketBase
-  const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app"; // ⇦ ton IP locale
+  const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+
 
   const handleSignup = async () => {
     if (!email || !pass) {
@@ -153,14 +155,11 @@ export default function SignupScreen({ navigation }) {
         autoCapitalize="none"
         keyboardType="email-address"
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Mot de passe"
-        placeholderTextColor="#8c9199"
-        secureTextEntry
+      <PasswordInput
         value={pass}
         onChangeText={setPass}
       />
+
 
       {/* Entreprise */}
       <Text style={styles.label}>Entreprise</Text>

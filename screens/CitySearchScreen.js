@@ -1,52 +1,64 @@
 // screens/CitySearchScreen.js
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, FlatList, TextInput, ActivityIndicator } from "react-native";
-import Constants from "expo-constants";
 import axios from "axios";
 
-const API_KEY =
-  Constants.expoConfig?.extra?.GOOGLE_PLACES_KEY ??
-  Constants.manifest?.extra?.GOOGLE_PLACES_KEY ??
-  null;
+const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
+// (optionnel) une adresse email de contact pour respecter la policy Nominatim
+const NOMINATIM_EMAIL = "contact@ton-domaine.fr"; // ou laisse vide
 
 export default function CitySearchScreen({ navigation, route }) {
   const { onPick, country = "fr", initialValue = "" } = route.params || {};
   const [query, setQuery] = useState(initialValue);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  if (!API_KEY) {
-    Alert.alert(
-      "Clé Google manquante",
-    );
-  }
+  const debounceRef = useRef(null);
 
   const fetchCities = async (text) => {
-    if (text.length < 2) {
+    if (text.trim().length < 2) {
       setResults([]);
       return;
     }
     setLoading(true);
     try {
-      const res = await axios.get("https://maps.googleapis.com/maps/api/place/autocomplete/json", {
+      const res = await axios.get(NOMINATIM_BASE, {
         params: {
-          input: text,
-          key: API_KEY,
-          language: "fr",
-          components: `country:${country}`,
-          types: "(cities)",
+          q: text,
+          format: "jsonv2",
+          "accept-language": "fr",
+          countrycodes: country.toLowerCase(), // ex: "fr"
+          limit: 10,
+          email: NOMINATIM_EMAIL || undefined, // facultatif mais recommandé
+          dedupe: 1,
+        },
+        headers: {
+          // recommandé par Nominatim : identifier ton appli
+          "User-Agent": "ColiPerforma/1.0 (+https://pocketbasecoliperforma.onrender.com)",
+          Referer: "https://pocketbasecoliperforma.onrender.com",
         },
         timeout: 15000,
       });
 
-      const predictions = res.data?.predictions ?? [];
-      setResults(predictions);
+      // On garde place.type intéressant (city, town, village)
+      const all = Array.isArray(res.data) ? res.data : [];
+      const filtered = all.filter(
+        (p) =>
+          ["city", "town", "village"].includes(p.type) ||
+          (p.class === "place" && ["city", "town", "village"].includes(p.type))
+      );
+      setResults(filtered);
     } catch (err) {
-      console.error("Axios Places error:", err);
+      console.error("Nominatim error:", err);
       Alert.alert("Erreur", "Impossible de récupérer les villes.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const onChangeQuery = (text) => {
+    setQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchCities(text), 350);
   };
 
   const stylesGPA = useMemo(
@@ -72,6 +84,7 @@ export default function CitySearchScreen({ navigation, route }) {
         borderColor: "#1c2331",
       },
       rowText: { color: "#e6e9ef" },
+      rowSub: { color: "#9aa5b1", fontSize: 12, marginTop: 2 },
     }),
     []
   );
@@ -90,10 +103,9 @@ export default function CitySearchScreen({ navigation, route }) {
         placeholder="Tapez le nom de la ville"
         placeholderTextColor="#aaa"
         value={query}
-        onChangeText={(text) => {
-          setQuery(text);
-          fetchCities(text);
-        }}
+        onChangeText={onChangeQuery}
+        autoCorrect={false}
+        autoCapitalize="none"
       />
 
       {loading ? (
@@ -101,17 +113,23 @@ export default function CitySearchScreen({ navigation, route }) {
       ) : (
         <FlatList
           data={results}
-          keyExtractor={(item) => item.place_id}
+          keyExtractor={(item) => String(item.place_id)}
           style={stylesGPA.list}
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <TouchableOpacity
               style={stylesGPA.row}
               onPress={() => {
-                onPick && onPick(item.description ?? "");
+                // on renvoie le libellé principal
+                const label = item.display_name || item.name || "";
+                onPick && onPick(label);
                 navigation.goBack();
               }}
             >
-              <Text style={stylesGPA.rowText}>{item.description}</Text>
+              <Text style={stylesGPA.rowText}>{item.name || item.display_name}</Text>
+              {item.display_name ? (
+                <Text style={stylesGPA.rowSub}>{item.display_name}</Text>
+              ) : null}
             </TouchableOpacity>
           )}
         />
