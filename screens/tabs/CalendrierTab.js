@@ -26,7 +26,10 @@ LocaleConfig.locales.fr = {
 LocaleConfig.defaultLocale = "fr";
 
 // ---- Constantes ----
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+// ⚠️ normalise pour éviter //api
+const PB_URL_RAW = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+const PB_URL = PB_URL_RAW.replace(/\/+$/, "");
+const log = (...args) => console.log("[CalendrierTab]", ...args);
 
 const PAUSE_OBLIGATOIRE_MIN = 21;
 
@@ -85,6 +88,8 @@ export default function CalendrierTab() {
       const userRaw = await AsyncStorage.getItem("pb_model");
       const user = userRaw ? JSON.parse(userRaw) : null;
 
+      log("loadMonth -> token?", !!token, "userId?", user?.id);
+
       if (!token || !user?.id) {
         Alert.alert("Session requise", "Veuillez vous reconnecter.");
         setItems([]);
@@ -93,22 +98,28 @@ export default function CalendrierTab() {
 
       const { startISO, endISO } = monthBounds(new Date());
       const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
+      const url = `${PB_URL}/api/collections/journees/records`;
+
+      log("GET journees (month)", { url, filter });
 
       let page = 1;
       let acc = [];
       while (true) {
-        const res = await axios.get(`${PB_URL}/api/collections/journees/records`, {
+        const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
           params: { perPage: 200, page, filter, sort: "date" },
+          timeout: 15000,
         });
         const json = res.data || {};
+        log("page", page, "status", res?.status, "items", (json.items || []).length, "totalPages", json.totalPages);
         acc = acc.concat(json.items || []);
         if (!json.totalPages || json.page >= json.totalPages) break;
         page += 1;
       }
+      log("accumulated items", acc.length);
       setItems(acc);
     } catch (e) {
-      console.error("CalendrierTab loadMonth error:", e);
+      log("loadMonth error", e?.message, e?.response?.data);
       Alert.alert("Erreur", e?.response?.data?.message || e.message || "Impossible de charger le calendrier.");
       setItems([]);
     } finally {
@@ -118,6 +129,7 @@ export default function CalendrierTab() {
 
   useFocusEffect(
     useCallback(() => {
+      log("focus -> loadMonth()");
       loadMonth();
     }, [loadMonth])
   );
@@ -128,7 +140,7 @@ export default function CalendrierTab() {
     const dim = isSundayKey(selected);
 
     if (!found) {
-      return {
+      const c = {
         id: null,
         date: selected,
         colis: 0,
@@ -140,8 +152,10 @@ export default function CalendrierTab() {
         isFerie: false,
         dimanche: dim,
       };
+      log("current (no record)", c);
+      return c;
     }
-    return {
+    const c = {
       id: found.id,
       date: found.date,
       colis: Number(found.colis || 0),
@@ -153,6 +167,8 @@ export default function CalendrierTab() {
       isFerie: toBool(found.isFerie),
       dimanche: dim,
     };
+    log("current (from record)", { id: c.id, date: c.date, repos: c.isRepos, ferie: c.isFerie, colis: c.colis });
+    return c;
   }, [items, selected]);
 
   const nonWorked = current.dimanche || current.isRepos || current.isFerie;
@@ -161,13 +177,14 @@ export default function CalendrierTab() {
     if (nonWorked) return "0h00";
     let mins = workMinutes(current.heureDebut, current.heureFin);
     if (mins > 0) mins = Math.max(0, mins - PAUSE_OBLIGATOIRE_MIN);
-    return fmtHM(mins);
+    const label = fmtHM(mins);
+    log("workedLabel", { mins, label });
+    return label;
   }, [current.heureDebut, current.heureFin, nonWorked]);
 
   // ---- Marquage du calendrier ----
   const markedDates = useMemo(() => {
     const marks = {};
-    // marquer chaque record du mois
     items.forEach((e) => {
       const key = toKey(e.date);
       const nw = toBool(e.isRepos) || toBool(e.isFerie) || isSundayKey(key);
@@ -178,12 +195,12 @@ export default function CalendrierTab() {
         },
       };
     });
-    // sélection
     marks[selected] = {
       selected: true,
       selectedColor: "#2563eb",
       selectedTextColor: "#ffffff",
     };
+    log("markedDates built", Object.keys(marks).length);
     return marks;
   }, [items, selected]);
 
@@ -193,6 +210,8 @@ export default function CalendrierTab() {
       const token = await AsyncStorage.getItem("pb_token");
       const userRaw = await AsyncStorage.getItem("pb_model");
       const user = userRaw ? JSON.parse(userRaw) : null;
+
+      log("updateFlags -> token?", !!token, "userId?", user?.id, "next", next);
 
       if (!token || !user?.id) {
         Alert.alert("Session requise", "Veuillez vous reconnecter.");
@@ -204,7 +223,6 @@ export default function CalendrierTab() {
       const payload = {
         user: user.id,
         date: keyISO,
-        // si non travaillé → reset colis/HS/horaires
         colis: nonWorkedNext ? 0 : (Number(current.colis) || 0),
         heuresSupp: nonWorkedNext ? 0 : (Number(current.heuresSupp) || 0),
         heureDebut: nonWorkedNext ? null : current.heureDebut,
@@ -213,9 +231,9 @@ export default function CalendrierTab() {
         isRepos: toBool(next.isRepos),
         isFerie: toBool(next.isFerie),
       };
+      log(current.id ? "PATCH flags" : "POST flags", payload);
 
       if (current.id) {
-        // update
         await axios.patch(
           `${PB_URL}/api/collections/journees/records/${current.id}`,
           payload,
@@ -224,10 +242,10 @@ export default function CalendrierTab() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            timeout: 15000,
           }
         );
       } else {
-        // create
         await axios.post(
           `${PB_URL}/api/collections/journees/records`,
           payload,
@@ -236,13 +254,15 @@ export default function CalendrierTab() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            timeout: 15000,
           }
         );
       }
 
+      log("updateFlags OK -> reload month");
       await loadMonth(); // refresh
     } catch (e) {
-      console.error("CalendrierTab updateFlags error:", e);
+      log("updateFlags error", e?.message, e?.response?.data);
       const msg =
         e?.response?.data?.message ||
         e?.message ||
@@ -254,11 +274,13 @@ export default function CalendrierTab() {
   const onToggleRepos = (value) => {
     const v = toBool(value);
     const nextNonWorked = v || toBool(current.isFerie) || current.dimanche;
+    log("onToggleRepos", { v, nextNonWorked });
     updateFlags({ isRepos: v, isFerie: current.isFerie, nonWorked: nextNonWorked });
   };
   const onToggleFerie = (value) => {
     const v = toBool(value);
     const nextNonWorked = v || toBool(current.isRepos) || current.dimanche;
+    log("onToggleFerie", { v, nextNonWorked });
     updateFlags({ isRepos: current.isRepos, isFerie: v, nonWorked: nextNonWorked });
   };
 
@@ -280,7 +302,10 @@ export default function CalendrierTab() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Calendar
-        onDayPress={(d) => setSelected(d.dateString)}
+        onDayPress={(d) => {
+          log("onDayPress", d?.dateString);
+          setSelected(d.dateString);
+        }}
         markedDates={markedDates}
         markingType="custom"
         theme={calTheme}
@@ -299,15 +324,15 @@ export default function CalendrierTab() {
           <>
             <Row
               label="Nombre de colis total"
-              value={nonWorked ? 0 : (current.colis || 0)}
+              value={ (current.dimanche || current.isRepos || current.isFerie) ? 0 : (current.colis || 0) }
             />
             <Row
               label="Heures travaillées (pause déduite)"
-              value={nonWorked ? "0h00" : workedLabel}
+              value={ (current.dimanche || current.isRepos || current.isFerie) ? "0h00" : workedLabel }
             />
             <Row
               label="Poste occupé"
-              value={nonWorked ? "-" : (current.poste || "-")}
+              value={ (current.dimanche || current.isRepos || current.isFerie) ? "-" : (current.poste || "-") }
             />
 
             <View style={[styles.switchRow, { marginTop: 10 }]}>

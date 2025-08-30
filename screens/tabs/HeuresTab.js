@@ -1,17 +1,13 @@
-// screens/tabs/HeuresTab.js
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+// ⚠️ normalise pour éviter //api
+const PB_URL_RAW = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+const PB_URL = PB_URL_RAW.replace(/\/+$/, "");
+const log = (...args) => console.log("[HeuresTab]", ...args);
 
 const PAUSE_OBLIGATOIRE_MIN = 21; // minutes de pause par jour travaillé
 
@@ -29,29 +25,23 @@ const toBool = (v) => {
 function monthLabel(d = new Date()) {
   return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
-
 function getMonthBounds(d = new Date()) {
   const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
-
 function isSundayISO(dateIso) {
   const d = new Date(dateIso);
-  return d.getDay() === 0; // 0 = dimanche
+  return d.getDay() === 0;
 }
-
-// durée travaillée en minutes (avec passage minuit si besoin)
 function workMinutes(heureDebutIso, heureFinIso) {
   if (!heureDebutIso || !heureFinIso) return 0;
   const start = new Date(heureDebutIso);
   const end = new Date(heureFinIso);
   let ms = end.getTime() - start.getTime();
-  if (ms < 0) ms += 24 * 60 * 60 * 1000; // gestion si fin après minuit
+  if (ms < 0) ms += 24 * 60 * 60 * 1000; // passage minuit
   return Math.max(0, Math.round(ms / 60000));
 }
-
-// format minutes → "XhYY"
 function fmtHM(totalMin) {
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
@@ -73,10 +63,11 @@ export default function HeuresTab() {
     try {
       setLoading(true);
 
-      // session utilisateur
       const token = await AsyncStorage.getItem("pb_token");
       const userRaw = await AsyncStorage.getItem("pb_model");
       const user = userRaw ? JSON.parse(userRaw) : null;
+
+      log("session", { hasToken: !!token, userId: user?.id });
 
       if (!token || !user?.id) {
         Alert.alert("Session requise", "Veuillez vous reconnecter.");
@@ -84,25 +75,28 @@ export default function HeuresTab() {
         return;
       }
 
-      // récupérer toutes les journées du mois en cours
       const { startISO, endISO } = getMonthBounds(new Date());
       const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
+      const url = `${PB_URL}/api/collections/journees/records`;
+
+      log("GET journees (month)", { url, filter });
 
       let page = 1;
       let items = [];
       while (true) {
-        const res = await axios.get(
-          `${PB_URL}/api/collections/journees/records`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: { perPage: 200, page, filter },
-          }
-        );
+        const res = await axios.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { perPage: 200, page, filter, sort: "date" },
+          timeout: 15000,
+        });
         const json = res.data || {};
+        const count = (json.items || []).length;
+        log("page", page, "status", res?.status, "items", count, "totalPages", json.totalPages);
         items = items.concat(json.items || []);
         if (!json.totalPages || json.page >= json.totalPages) break;
         page += 1;
       }
+      log("total items accumulated", items.length);
 
       // calculs
       let minTravail = 0;   // minutes travaillées (pause déduite)
@@ -114,23 +108,21 @@ export default function HeuresTab() {
         if (nonWorked) continue;
 
         let mins = workMinutes(e.heureDebut, e.heureFin);
-
         if (mins > 0) {
-          // déduction pause obligatoire
           mins = Math.max(0, mins - PAUSE_OBLIGATOIRE_MIN);
           joursTravailles += 1;
         }
-
         minTravail += mins;
 
         const hs = Number(e.heuresSupp || 0);
         minSupp += Math.max(0, Math.round(hs * 60));
       }
 
-      // total = uniquement heures de travail (sans supp)
-      const minTotal = minTravail;
+      const minTotal = minTravail; // hors supp
       const moyenneMinParJour = joursTravailles > 0 ? Math.round(minTravail / joursTravailles) : 0;
       const pauseTotale = joursTravailles * PAUSE_OBLIGATOIRE_MIN;
+
+      log("stats computed", { minTravail, minSupp, minTotal, joursTravailles, moyenneMinParJour, pauseTotale });
 
       setStats({
         minTravail,
@@ -141,7 +133,7 @@ export default function HeuresTab() {
         pauseTotale,
       });
     } catch (e) {
-      console.error("HeuresTab error:", e);
+      log("HeuresTab error", e?.message, e?.response?.data);
       Alert.alert("Erreur", e?.response?.data?.message || e.message || "Impossible de charger les heures.");
       setStats({
         minTravail: 0,
@@ -153,11 +145,13 @@ export default function HeuresTab() {
       });
     } finally {
       setLoading(false);
+      log("fetchMonthHours finished");
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
+      log("focus -> fetchMonthHours()");
       fetchMonthHours();
     }, [fetchMonthHours])
   );
@@ -194,7 +188,7 @@ export default function HeuresTab() {
 
           <Text style={styles.note}>
             Les <Text style={styles.bold}>dimanches</Text>, les jours marqués{" "}
-            <Text style={styles.bold}>repos</Text> ou <Text style={styles.bold}>fériés</Text> sont exclus des cumuls.          
+            <Text style={styles.bold}>repos</Text> ou <Text style={styles.bold}>fériés</Text> sont exclus des cumuls.
             Chaque jour travaillé déduit automatiquement{" "}
             <Text style={styles.bold}>{PAUSE_OBLIGATOIRE_MIN} minutes</Text> de pause obligatoire.
           </Text>

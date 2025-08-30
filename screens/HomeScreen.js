@@ -22,23 +22,47 @@ const TABS = [
   { key: "calendrier", label: "Calendrier" },
 ];
 
+const log = (...args) => console.log("[HomeScreen]", ...args);
+
 export default function HomeScreen({ navigation }) {
   const [activeKey, setActiveKey] = useState("journee"); // par défaut: Journée
   const [me, setMe] = useState(null);
 
   useEffect(() => {
     const loadMe = async () => {
+      log("Mount -> loadMe()");
       try {
         const raw = await AsyncStorage.getItem("pb_model");
-        if (raw) setMe(JSON.parse(raw));
+        log("AsyncStorage pb_model raw length:", raw ? raw.length : 0);
+
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            setMe(parsed);
+            log("pb_model parsed", {
+              id: parsed?.id,
+              email: parsed?.email,
+              secteur: parsed?.secteur,
+              verified: parsed?.verified,
+            });
+          } catch (e) {
+            log("JSON.parse pb_model FAILED -> clearing pb_model", e?.message);
+            await AsyncStorage.removeItem("pb_model");
+            setMe(null);
+          }
+        } else {
+          log("No pb_model in storage");
+          setMe(null);
+        }
       } catch (e) {
-        console.log("Erreur chargement user:", e);
+        log("Erreur chargement user:", e?.message);
       }
     };
     loadMe();
   }, []);
 
   const renderContent = () => {
+    log("renderContent", activeKey);
     switch (activeKey) {
       case "journee":
         return <JourneeTab />;
@@ -53,15 +77,34 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
+  useEffect(() => {
+    log("activeKey changed ->", activeKey);
+  }, [activeKey]);
+
+  const showFFLBtn = me?.secteur === "FFL (Fruits, Légumes, Fleurs)";
+  if (me && "secteur" in me) {
+    log("me.secteur:", me?.secteur, " -> showFFLBtn:", showFFLBtn);
+  } else {
+    log("me not loaded yet or secteur missing");
+  }
+
   return (
     <SafeAreaView style={styles.page}>
-      <TopBar onLeftPress={() => navigation.navigate("Parametres")} />
+      <TopBar
+        onLeftPress={() => {
+          log("Navigate -> Parametres");
+          navigation.navigate("Parametres");
+        }}
+      />
 
       {/* Bouton visible uniquement pour le secteur FFL */}
-      {me?.secteur === "FFL (Fruits, Légumes, Fleurs)" && (
+      {showFFLBtn && (
         <TouchableOpacity
           style={styles.btn}
-          onPress={() => navigation.navigate("PalettesFFL")}
+          onPress={() => {
+            log("Navigate -> PalettesFFL");
+            navigation.navigate("PalettesFFL");
+          }}
         >
           <Text style={styles.btnTxt}>Saisir palettes FFL</Text>
         </TouchableOpacity>
@@ -70,9 +113,15 @@ export default function HomeScreen({ navigation }) {
       <SegmentTabs
         tabs={TABS}
         activeKey={activeKey}
-        onChange={setActiveKey}
+        onChange={(key) => {
+          log("SegmentTabs onChange", key);
+          setActiveKey(key);
+        }}
       />
-      <LogoutButton navigation={navigation} />
+      <LogoutButton
+        navigation={navigation}
+        onPress={() => log("LogoutButton pressed")}
+      />
 
       <View style={styles.content}>{renderContent()}</View>
     </SafeAreaView>

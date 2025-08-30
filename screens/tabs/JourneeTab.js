@@ -11,11 +11,14 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DayCard from "../../components/DayCard";
-import SaveBar from "../../components/SaveBar"; // ✅ barre d’actions réutilisable
+import SaveBar from "../../components/SaveBar";
 import axios from "axios";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+// ⚠️ normalise pour éviter //api
+const PB_URL_RAW = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+const PB_URL = PB_URL_RAW.replace(/\/+$/, "");
 
+const log = (...args) => console.log("[JourneeTab]", ...args);
 
 const toBool = (v) => {
   if (v === true || v === false) return v;
@@ -47,7 +50,7 @@ export default function JourneeTab() {
   // Pré-remplissage de la DayCard quand un record existe
   const prefill = useMemo(() => {
     if (!existing) return null;
-    return {
+    const pf = {
       date: existing.date,
       heureDebut: existing.heureDebut,
       heureFin: existing.heureFin,
@@ -58,18 +61,25 @@ export default function JourneeTab() {
       isRepos: toBool(existing.isRepos),
       isFerie: toBool(existing.isFerie),
     };
+    log("prefill from existing", pf);
+    return pf;
   }, [existing]);
 
   // --------- Vérifier s'il existe déjà une entrée pour la date choisie
   useEffect(() => {
     const run = async () => {
-      if (!dayData?.date) return;
       try {
+        if (!dayData?.date) {
+          log("skip checkExisting: no dayData.date yet");
+          return;
+        }
         setChecking(true);
 
         const token = await AsyncStorage.getItem("pb_token");
         const userRaw = await AsyncStorage.getItem("pb_model");
         const user = userRaw ? JSON.parse(userRaw) : null;
+
+        log("checkExisting -> token?", !!token, "userId?", user?.id, "date", dayData.date);
 
         if (!token || !user?.id) {
           setExisting(null);
@@ -79,25 +89,30 @@ export default function JourneeTab() {
 
         const { startISO, endISO } = getDayBoundsISO(dayData.date);
         const filter = `user="${user.id}" && date >= "${startISO}" && date <= "${endISO}"`;
+        const url = `${PB_URL}/api/collections/journees/records`;
 
-        const res = await axios.get(
-          `${PB_URL}/api/collections/journees/records`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: { perPage: 1, filter },
-          }
-        );
+        log("GET journees", { url, filter });
+
+        const res = await axios.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { perPage: 1, filter },
+          timeout: 15000,
+        });
+
+        log("GET status", res?.status, "keys", Object.keys(res?.data || {}));
 
         const json = res.data;
         if (json?.items?.length) {
+          log("existing found", json.items[0]?.id);
           setExisting(json.items[0]);
           setEditMode(false); // on verrouille par défaut si déjà enregistré
         } else {
+          log("no existing entry for day");
           setExisting(null);
           setEditMode(true);  // pas d'entrée => mode édition
         }
       } catch (e) {
-        console.log("checkExisting error:", e);
+        log("checkExisting error", e?.message, e?.response?.data);
         setExisting(null);
         setEditMode(true);
       } finally {
@@ -110,7 +125,10 @@ export default function JourneeTab() {
   // --------- Enregistrer (create ou update)
   // Doit retourner true si OK (pour que SaveBar déclenche la pub)
   const onSave = async () => {
-    if (!dayData) return false;
+    if (!dayData) {
+      log("onSave aborted: no dayData");
+      return false;
+    }
 
     try {
       setSaving(true);
@@ -118,6 +136,8 @@ export default function JourneeTab() {
       const token = await AsyncStorage.getItem("pb_token");
       const userRaw = await AsyncStorage.getItem("pb_model");
       const user = userRaw ? JSON.parse(userRaw) : null;
+
+      log("onSave -> token?", !!token, "userId?", user?.id);
 
       if (!token || !user?.id) {
         Alert.alert("Session expirée", "Veuillez vous reconnecter.");
@@ -129,42 +149,42 @@ export default function JourneeTab() {
         date: new Date(dayData.date).toISOString(),
         colis: Number(dayData.colis || 0),
         heuresSupp: Number(dayData.heuresSupp || 0),
-        heureDebut: new Date(dayData.heureDebut).toISOString(),
-        heureFin: new Date(dayData.heureFin).toISOString(),
+        heureDebut: dayData.heureDebut ? new Date(dayData.heureDebut).toISOString() : null,
+        heureFin: dayData.heureFin ? new Date(dayData.heureFin).toISOString() : null,
         poste: dayData.poste || null,
         polyvalence: dayData.polyvalence || null,
         isRepos: toBool(dayData.isRepos),
         isFerie: toBool(dayData.isFerie),
       };
 
+      log(existing?.id ? "PATCH payload" : "POST payload", payload);
+
       if (existing?.id) {
         // UPDATE
-        const res = await axios.patch(
-          `${PB_URL}/api/collections/journees/records/${existing.id}`,
-          payload,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const url = `${PB_URL}/api/collections/journees/records/${existing.id}`;
+        const res = await axios.patch(url, payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 15000,
+        });
+        log("PATCH status", res?.status);
         const json = res.data;
         setExisting(json);
         setEditMode(false);
         Alert.alert("✅ Modifié", "La journée a été mise à jour.");
       } else {
         // CREATE
-        const res = await axios.post(
-          `${PB_URL}/api/collections/journees/records`,
-          payload,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const url = `${PB_URL}/api/collections/journees/records`;
+        const res = await axios.post(url, payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 15000,
+        });
+        log("POST status", res?.status);
         const json = res.data;
         setExisting(json);
         setEditMode(false);
@@ -174,7 +194,7 @@ export default function JourneeTab() {
       Keyboard.dismiss();
       return true; // ✅ succès → SaveBar affichera la pub
     } catch (err) {
-      console.error("save error:", err);
+      log("save error", err?.message, err?.response?.data);
       const msg =
         err?.response?.data?.message ||
         err?.message ||
@@ -183,6 +203,7 @@ export default function JourneeTab() {
       return false;
     } finally {
       setSaving(false);
+      log("onSave finished");
     }
   };
 
@@ -198,29 +219,36 @@ export default function JourneeTab() {
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 20 }}
           keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => log("Scroll started")}
         >
-          {/* Carte du jour */}
           <DayCard
             prefill={prefill}
-            disabled={!editMode}     // grisé si lecture seule
-            onChange={setDayData}    // remonte en temps réel
+            disabled={!editMode}
+            onChange={(d) => {
+              setDayData(d);
+              if (__DEV__) log("DayCard onChange", {
+                hasDate: !!d?.date,
+                colis: d?.colis,
+                hs: d?.heuresSupp,
+                isRepos: toBool(d?.isRepos),
+                isFerie: toBool(d?.isFerie),
+              });
+            }}
           />
 
-          {/* Barre d’actions + pub (via SaveBar) */}
           <SaveBar
             checking={checking}
             editMode={editMode}
             saving={saving}
             hasExisting={!!existing}
             onSave={onSave}
-            onEnableEdit={() => setEditMode(true)}
+            onEnableEdit={() => { log("Enable edit clicked"); setEditMode(true); }}
           />
         </ScrollView>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
-
 
 const styles = StyleSheet.create({
   btn: {

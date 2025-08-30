@@ -21,8 +21,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import PasswordInput from "../components/PasswordInput";
 
-const PB_URL = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+// ⚠️ évite le slash final pour ne pas générer //api/...
+const PB_URL_RAW = "https://cooing-emalee-axelads-7ec4b898.koyeb.app/";
+const PB_URL = PB_URL_RAW.replace(/\/+$/, "");
 
+const log = (...args) => console.log("[LoginScreen]", ...args);
 
 // --- Helpers (robustesse booleans) ---
 const toBool = (v) => {
@@ -39,13 +42,10 @@ const toBool = (v) => {
 // Normalise ce qu’on connaît potentiellement comme bool dans user record.
 // (On reste conservateur : on ne touche qu’aux champs qui posent classiquement souci)
 const normalizeRecord = (rec = {}) => {
-  const out = { ...rec };
-  // champs PocketBase fréquents
+  const out = { ...rec }; // ⚠️ bien ...rec (et pas .rec)
   if ("verified" in out) out.verified = toBool(out.verified);
   if ("emailVisibility" in out) out.emailVisibility = toBool(out.emailVisibility);
   if ("isAdmin" in out) out.isAdmin = toBool(out.isAdmin);
-  // si tu ajoutes d'autres flags dans users plus tard, ajoute-les ici :
-  // if ('someFlag' in out) out.someFlag = toBool(out.someFlag);
   return out;
 };
 
@@ -56,36 +56,42 @@ export default function LoginScreen({ navigation }) {
   const passRef = useRef(null);
 
   const handleLogin = async () => {
-    const identity = username.trim();
-    const pwd = password;
+    const identity = String(username || "").trim();
+    const pwd = String(password || "");
+
+    log("handleLogin called", { identityLength: identity.length, pwdLength: pwd.length });
+    log("PB_URL resolved:", PB_URL);
 
     if (!identity || !pwd) {
-      Alert.alert(
-        "Champs requis",
-        !identity && !pwd
-          ? "Veuillez renseigner l'email et le mot de passe."
-          : !identity
-          ? "Veuillez renseigner votre email."
-          : "Veuillez renseigner votre mot de passe."
-      );
+      const msg = !identity && !pwd
+        ? "Veuillez renseigner l'email et le mot de passe."
+        : !identity
+        ? "Veuillez renseigner votre email."
+        : "Veuillez renseigner votre mot de passe.";
+      log("Missing fields -> abort", { identityOk: !!identity, pwdOk: !!pwd });
+      Alert.alert("Champs requis", msg);
       return;
     }
 
     Keyboard.dismiss();
     setLoading(true);
     try {
+      const url = `${PB_URL}/api/collections/users/auth-with-password`;
+      log("POST auth-with-password", { url, identityPreview: identity, hasPwd: !!pwd });
+
       const res = await axios.post(
-        `${PB_URL}/api/collections/users/auth-with-password`,
+        url,
         { identity, password: pwd },
         {
           headers: { "Content-Type": "application/json" },
-          timeout: 15000, // ⏳ évite le crash Android si timeout null
+          timeout: 15000,
         }
       );
 
       const data = res?.data ?? {};
+      log("HTTP status:", res?.status);
+      log("Response keys:", Object.keys(data || {}));
 
-      // (Par sécurité — axios throw déjà sur codes non-2xx)
       if (res.status < 200 || res.status >= 300) {
         let msg = "Email ou mot de passe incorrect.";
         if (
@@ -98,38 +104,59 @@ export default function LoginScreen({ navigation }) {
             ? "Email ou mot de passe incorrect."
             : data.message;
         }
+        log("Non-2xx status -> throw", { msg });
         throw new Error(msg);
       }
 
       if (data?.token) {
+        log("Saving token to AsyncStorage (pb_token length)", String(data.token).length);
         await AsyncStorage.setItem("pb_token", String(data.token));
+      } else {
+        log("No token present in response");
       }
 
       if (data?.record) {
-        // 💡 on normalise (notamment booleans) avant de stocker
         const normalized = normalizeRecord(data.record);
+        log("Record received", {
+          id: normalized?.id,
+          email: normalized?.email,
+          verified: normalized?.verified,
+          isAdmin: normalized?.isAdmin,
+        });
         await AsyncStorage.setItem("pb_model", JSON.stringify(normalized));
       } else {
-        // par prudence, on évite de laisser un vieux modèle en cache si pas renvoyé
+        log("No record in response -> remove pb_model");
         await AsyncStorage.removeItem("pb_model");
       }
 
+      log("Login success -> navigating to Home");
       Alert.alert("Succès", "Connexion réussie !");
       navigation.replace("Home");
     } catch (err) {
-      console.error("Login error:", err);
+      const axiosStatus = err?.response?.status;
+      const axiosData = err?.response?.data;
+      log("Login error CATCH", {
+        name: err?.name,
+        message: err?.message,
+        axiosStatus,
+        axiosData,
+      });
+
       const msg =
-        err?.response?.data?.message ||
+        axiosData?.message ||
         err?.message ||
         "Une erreur est survenue.";
       Alert.alert("Connexion impossible", msg);
 
-      // En cas d’échec, on nettoie la session pour éviter un cache incohérent
       try {
+        log("Cleaning session (pb_token, pb_model)");
         await AsyncStorage.multiRemove(["pb_token", "pb_model"]);
-      } catch {}
+      } catch (cleanupErr) {
+        log("Cleanup error", cleanupErr);
+      }
     } finally {
       setLoading(false);
+      log("handleLogin finished");
     }
   };
 
@@ -145,7 +172,6 @@ export default function LoginScreen({ navigation }) {
             contentContainerStyle={styles.container}
             keyboardShouldPersistTaps="handled"
           >
-            {/* 🚫 Bannière pub désactivée temporairement */}
             {/* <AdBanner /> */}
 
             {/* Logo */}
@@ -153,6 +179,8 @@ export default function LoginScreen({ navigation }) {
               source={require("../assets/logo_ColisPerforma.png")}
               style={styles.logo}
               resizeMode="contain"
+              onLoad={() => log("Logo loaded")}
+              onError={(e) => log("Logo load error", e?.nativeEvent)}
             />
 
             <Text style={styles.title}>Connexion</Text>
@@ -162,7 +190,10 @@ export default function LoginScreen({ navigation }) {
               placeholder="Email"
               placeholderTextColor="#aaa"
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(t) => {
+                setUsername(t);
+                if (__DEV__) log("Username changed", t);
+              }}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -175,7 +206,10 @@ export default function LoginScreen({ navigation }) {
             <PasswordInput
               inputRef={passRef}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (__DEV__) log("Password changed (len)", t?.length ?? 0);
+              }}
             />
 
             <TouchableOpacity
@@ -190,11 +224,10 @@ export default function LoginScreen({ navigation }) {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+            <TouchableOpacity onPress={() => { log("Navigate -> Signup"); navigation.navigate("Signup"); }}>
               <Text style={styles.link}>Créer un compte</Text>
             </TouchableOpacity>
 
-            {/* Footer */}
             <Text style={styles.footer}>Propulsé by Axel Gregoire © 2025</Text>
           </ScrollView>
         </TouchableWithoutFeedback>
